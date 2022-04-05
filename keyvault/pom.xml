@@ -12,8 +12,8 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <java.version>11</java.version>
-        <azure.functions.maven.plugin.version>1.16.0</azure.functions.maven.plugin.version>
-        <azure.functions.java.library.version>1.4.2</azure.functions.java.library.version>
+        <azure.functions.maven.plugin.version>1.17.0</azure.functions.maven.plugin.version>
+        <azure.functions.java.library.version>2.0.0</azure.functions.java.library.version>
         <functionAppName>func4kv11</functionAppName>
     </properties>
 
@@ -77,7 +77,7 @@
                     <!-- function app resource group -->
                     <resourceGroup>keyvault</resourceGroup>
                     <!-- function app service plan name -->
-                    <appServicePlanName>java-functions-app-service-plan</appServicePlanName>
+                    <appServicePlanName>ASP-func4kv11</appServicePlanName>
                     <!-- function app region-->
                     <!-- refers https://github.com/microsoft/azure-maven-plugins/wiki/Azure-Functions:-Configuration-Details#supported-regions for all valid values -->
                     <region>japaneast</region>
