@@ -2,8 +2,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.func4kv11.group</groupId>
-    <artifactId>func4kv11-functions</artifactId>
+    <groupId>dev.logicojp.sample</groupId>
+    <artifactId>func4kv25-functions</artifactId>
     <version>1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
@@ -11,10 +11,22 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <java.version>11</java.version>
-        <azure.functions.maven.plugin.version>1.17.0</azure.functions.maven.plugin.version>
-        <azure.functions.java.library.version>2.0.0</azure.functions.java.library.version>
-        <functionAppName>func4kv11</functionAppName>
+        <java.version>25</java.version>
+        <azure.functions.maven.plugin.version>1.42.0</azure.functions.maven.plugin.version>
+        <azure.functions.java.library.version>3.3.0</azure.functions.java.library.version>
+        <azure.security.java.keyvault.keys.version>4.11.0</azure.security.java.keyvault.keys.version>
+        <azure.messaging.servicebus.version>7.17.18</azure.messaging.servicebus.version>
+        <azure.identity.version>1.18.3</azure.identity.version>
+        <maven.clean.plugin.version>3.5.0</maven.clean.plugin.version>
+        <maven.compiler.plugin.version>3.15.0</maven.compiler.plugin.version>
+        <mockito.core.version>5.23.0</mockito.core.version>
+        <junit.jupiter.version>6.1.0</junit.jupiter.version>
+        <functionAppName>func4kv25</functionAppName>
+        <resourceGroup>keyvault</resourceGroup>
+        <appServicePlanName>ASP-func4kv25</appServicePlanName>
+        <region>japaneast</region>
+        <pricingTier>Flex Consumption</pricingTier>
+        <runtime.os>linux</runtime.os>
     </properties>
 
     <dependencies>
@@ -26,31 +38,31 @@
         <dependency>
             <groupId>com.azure</groupId>
             <artifactId>azure-security-keyvault-keys</artifactId>
-            <version>4.10.6</version>
+            <version>${azure.security.java.keyvault.keys.version}</version>
         </dependency>
         <dependency>
             <groupId>com.azure</groupId>
             <artifactId>azure-messaging-servicebus</artifactId>
-            <version>7.7.0</version>
+            <version>${azure.messaging.servicebus.version}</version>
         </dependency>
         <dependency>
             <groupId>com.azure</groupId>
             <artifactId>azure-identity</artifactId>
-            <version>1.12.2</version>
+            <version>${azure.identity.version}</version>
         </dependency>
 
         <!-- Test -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>5.8.2</version>
+            <version>${junit.jupiter.version}</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>4.3.1</version>
+            <version>${mockito.core.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -60,7 +72,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>${maven.compiler.plugin.version}</version>
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
@@ -75,22 +87,22 @@
                     <!-- function app name -->
                     <appName>${functionAppName}</appName>
                     <!-- function app resource group -->
-                    <resourceGroup>keyvault</resourceGroup>
+                    <resourceGroup>${resourceGroup}</resourceGroup>
                     <!-- function app service plan name -->
-                    <appServicePlanName>ASP-func4kv11</appServicePlanName>
+                    <appServicePlanName>${appServicePlanName}</appServicePlanName>
                     <!-- function app region-->
                     <!-- refers https://github.com/microsoft/azure-maven-plugins/wiki/Azure-Functions:-Configuration-Details#supported-regions for all valid values -->
-                    <region>japaneast</region>
+                    <region>${region}</region>
                     <!-- function pricingTier, default to be consumption if not specified -->
                     <!-- refers https://github.com/microsoft/azure-maven-plugins/wiki/Azure-Functions:-Configuration-Details#supported-pricing-tiers for all valid values -->
-                    <!-- <pricingTier></pricingTier> -->
+                    <pricingTier>${pricingTier}</pricingTier>
                     <!-- Whether to disable application insights, default is false -->
                     <!-- refers https://github.com/microsoft/azure-maven-plugins/wiki/Azure-Functions:-Configuration-Details for all valid configurations for application insights-->
                     <!-- <disableAppInsights></disableAppInsights> -->
                     <runtime>
                         <!-- runtime os, could be windows, linux or docker-->
-                        <os>linux</os>
-                        <javaVersion>11</javaVersion>
+                        <os>${runtime.os}</os>
+                        <javaVersion>${java.version}</javaVersion>
                     </runtime>
                     <appSettings>
                         <property>
@@ -111,7 +123,7 @@
             <!--Remove obj folder generated by .NET SDK in maven clean-->
             <plugin>
                 <artifactId>maven-clean-plugin</artifactId>
-                <version>3.1.0</version>
+                <version>${maven.clean.plugin.version}</version>
                 <configuration>
                     <filesets>
                         <fileset>
