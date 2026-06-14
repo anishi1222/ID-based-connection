@@ -1,20 +1,40 @@
 package com.func4kv;
 
-import com.azure.identity.DefaultAzureCredentialBuilder;
-import com.azure.security.keyvault.keys.cryptography.CryptographyClient;
-import com.azure.security.keyvault.keys.cryptography.CryptographyClientBuilder;
-import com.azure.security.keyvault.keys.cryptography.models.EncryptResult;
-import com.azure.security.keyvault.keys.cryptography.models.EncryptionAlgorithm;
-import com.microsoft.azure.functions.*;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+
+import com.microsoft.azure.functions.ExecutionContext;
+import com.microsoft.azure.functions.HttpMethod;
+import com.microsoft.azure.functions.HttpRequestMessage;
+import com.microsoft.azure.functions.HttpResponseMessage;
+import com.microsoft.azure.functions.HttpStatus;
+import com.microsoft.azure.functions.OutputBinding;
 import com.microsoft.azure.functions.annotation.AuthorizationLevel;
 import com.microsoft.azure.functions.annotation.FunctionName;
 import com.microsoft.azure.functions.annotation.HttpTrigger;
 import com.microsoft.azure.functions.annotation.ServiceBusTopicOutput;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
-
 public class Http2Sb {
+
+    private static final String KEY_ID_SETTING = "KEY_ID";
+    private static final String SERVICE_BUS_TOPIC_NAME_EXPRESSION = "%SERVICE_BUS_TOPIC_NAME%";
+    private static final String SERVICE_BUS_TOPIC_SUBSCRIPTION_NAME_EXPRESSION = "%SERVICE_BUS_TOPIC_SUBSCRIPTION_NAME%";
+
+    private final Function<String, String> environment;
+    private final Function<String, KeyVaultCryptography> cryptographyFactory;
+
+    public Http2Sb() {
+        this(System::getenv, AzureKeyVaultCryptography::new);
+    }
+
+    Http2Sb(
+            Function<String, String> environment,
+            Function<String, KeyVaultCryptography> cryptographyFactory) {
+        this.environment = Objects.requireNonNull(environment);
+        this.cryptographyFactory = Objects.requireNonNull(cryptographyFactory);
+    }
 
     @FunctionName("http2sb")
     public HttpResponseMessage run(
@@ -25,9 +45,9 @@ public class Http2Sb {
                 HttpRequestMessage<Optional<String>> request,
             @ServiceBusTopicOutput(
                 name="res",
-                topicName = "kvt1",
+                topicName = SERVICE_BUS_TOPIC_NAME_EXPRESSION,
                 connection = "sbConnection",
-                subscriptionName = "s1"
+                subscriptionName = SERVICE_BUS_TOPIC_SUBSCRIPTION_NAME_EXPRESSION
             ) OutputBinding<Payload> message,
             final ExecutionContext context) {
 
@@ -38,17 +58,12 @@ public class Http2Sb {
         final String body = request.getBody().get();
 
         byte[] rawBytes = body.getBytes(StandardCharsets.UTF_8);
-        Optional<String> keyId = Optional.ofNullable(System.getenv("KEY_ID"));
+        Optional<String> keyId = Optional.ofNullable(environment.apply(KEY_ID_SETTING));
         if(keyId.isEmpty()) {
             return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
 
-        CryptographyClient cryptoClient = new CryptographyClientBuilder()
-            .credential(new DefaultAzureCredentialBuilder().build())
-            .keyIdentifier(keyId.get())
-            .buildClient();
-        EncryptResult encryptResult = cryptoClient.encrypt(EncryptionAlgorithm.RSA_OAEP, rawBytes);
-        byte[] _cipherText = encryptResult.getCipherText();
+        byte[] _cipherText = cryptographyFactory.apply(keyId.get()).encrypt(rawBytes);
         Payload payload = new Payload();
         payload.setCipherText(_cipherText);
         payload.setLength(_cipherText.length);
@@ -56,7 +71,7 @@ public class Http2Sb {
         // Send data to Service Bus
         message.setValue(payload);
         return request.createResponseBuilder(HttpStatus.ACCEPTED)
-            .body("body message is encrypted and published to kvt1")
+            .body("body message is encrypted and published to the configured topic")
             .build();
     }
 }

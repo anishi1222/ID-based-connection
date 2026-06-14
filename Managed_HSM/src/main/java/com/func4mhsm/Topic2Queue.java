@@ -1,21 +1,33 @@
 package com.func4mhsm;
 
-import com.azure.core.util.Context;
-import com.azure.identity.DefaultAzureCredentialBuilder;
-import com.azure.security.keyvault.keys.cryptography.CryptographyClient;
-import com.azure.security.keyvault.keys.cryptography.CryptographyClientBuilder;
-import com.azure.security.keyvault.keys.cryptography.models.DecryptParameters;
-import com.azure.security.keyvault.keys.cryptography.models.DecryptResult;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+
 import com.microsoft.azure.functions.ExecutionContext;
 import com.microsoft.azure.functions.OutputBinding;
 import com.microsoft.azure.functions.annotation.FunctionName;
 import com.microsoft.azure.functions.annotation.ServiceBusQueueOutput;
 import com.microsoft.azure.functions.annotation.ServiceBusTopicTrigger;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
-
 public class Topic2Queue {
+
+    private static final String KEY_ID_SETTING = "KEY_ID";
+
+    private final Function<String, String> environment;
+    private final Function<String, ManagedHsmCryptography> cryptographyFactory;
+
+    public Topic2Queue() {
+        this(System::getenv, AzureManagedHsmCryptography::new);
+    }
+
+    Topic2Queue(
+        Function<String, String> environment,
+        Function<String, ManagedHsmCryptography> cryptographyFactory) {
+        this.environment = Objects.requireNonNull(environment);
+        this.cryptographyFactory = Objects.requireNonNull(cryptographyFactory);
+    }
 
     @FunctionName("topic2Queue")
     public void run(
@@ -30,17 +42,11 @@ public class Topic2Queue {
             connection = "sbConnection") OutputBinding<String> output,
         final ExecutionContext context) {
 
-        Optional<String> keyId = Optional.ofNullable(System.getenv("KEY_ID"));
+        Optional<String> keyId = Optional.ofNullable(environment.apply(KEY_ID_SETTING));
         if(keyId.isEmpty()) return;
 
-        CryptographyClient cryptoClient = new CryptographyClientBuilder()
-            .credential(new DefaultAzureCredentialBuilder().build())
-            .keyIdentifier(keyId.get())
-            .buildClient();
-        DecryptParameters decryptParameters = DecryptParameters.createA256CbcParameters(payload.getCipherText(), payload.getIv());
-        DecryptResult decryptResult = cryptoClient.decrypt(decryptParameters, new Context("key1", "value1"));
-
-        String decryptedString = new String(decryptResult.getPlainText(), StandardCharsets.UTF_8);
+        byte[] plainText = cryptographyFactory.apply(keyId.get()).decrypt(payload.getCipherText(), payload.getIv());
+        String decryptedString = new String(plainText, StandardCharsets.UTF_8);
         output.setValue(decryptedString);
     }
 }

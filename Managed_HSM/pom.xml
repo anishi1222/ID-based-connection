@@ -19,6 +19,7 @@
         <azure.identity.version>1.18.3</azure.identity.version>
         <maven.compiler.plugin.version>3.15.0</maven.compiler.plugin.version>
         <maven.clean.plugin.version>3.5.0</maven.clean.plugin.version>
+        <maven.surefire.plugin.version>3.5.4</maven.surefire.plugin.version>
         <mockito.core.version>5.23.0</mockito.core.version>
         <junit.jupiter.version>6.1.0</junit.jupiter.version>
         <functionAppName>func4mhsm25</functionAppName>
@@ -78,6 +79,11 @@
                     <target>${java.version}</target>
                     <encoding>${project.build.sourceEncoding}</encoding>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${maven.surefire.plugin.version}</version>
             </plugin>
             <plugin>
                 <groupId>com.microsoft.azure</groupId>

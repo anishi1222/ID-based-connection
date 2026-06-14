@@ -1,20 +1,34 @@
 package com.func4kv;
 
-import com.azure.identity.DefaultAzureCredentialBuilder;
-import com.azure.security.keyvault.keys.cryptography.CryptographyClient;
-import com.azure.security.keyvault.keys.cryptography.CryptographyClientBuilder;
-import com.azure.security.keyvault.keys.cryptography.models.DecryptResult;
-import com.azure.security.keyvault.keys.cryptography.models.EncryptionAlgorithm;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+
 import com.microsoft.azure.functions.ExecutionContext;
 import com.microsoft.azure.functions.OutputBinding;
 import com.microsoft.azure.functions.annotation.FunctionName;
 import com.microsoft.azure.functions.annotation.ServiceBusQueueOutput;
 import com.microsoft.azure.functions.annotation.ServiceBusTopicTrigger;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
-
 public class Topic2Queue {
+
+    private static final String KEY_ID_SETTING = "KEY_ID";
+
+    private final Function<String, String> environment;
+    private final Function<String, KeyVaultCryptography> cryptographyFactory;
+
+    public Topic2Queue() {
+        this(System::getenv, AzureKeyVaultCryptography::new);
+    }
+
+    Topic2Queue(
+            Function<String, String> environment,
+            Function<String, KeyVaultCryptography> cryptographyFactory) {
+        this.environment = Objects.requireNonNull(environment);
+        this.cryptographyFactory = Objects.requireNonNull(cryptographyFactory);
+    }
+
     @FunctionName("topic2Queue")
     public void run(
             @ServiceBusTopicTrigger(
@@ -31,15 +45,10 @@ public class Topic2Queue {
 
 
         byte[] cipherText = payload.getCipherText();
-        Optional<String> keyId = Optional.ofNullable(System.getenv("KEY_ID"));
+        Optional<String> keyId = Optional.ofNullable(environment.apply(KEY_ID_SETTING));
         if(keyId.isEmpty()) return;
 
-        CryptographyClient cryptoClient = new CryptographyClientBuilder()
-            .credential(new DefaultAzureCredentialBuilder().build())
-            .keyIdentifier(keyId.get())
-            .buildClient();
-        DecryptResult decryptResult = cryptoClient.decrypt(EncryptionAlgorithm.RSA_OAEP,cipherText);
-        byte[] rawBytes = decryptResult.getPlainText();
+        byte[] rawBytes = cryptographyFactory.apply(keyId.get()).decrypt(cipherText);
         output.setValue(new String(rawBytes, StandardCharsets.UTF_8));
     }
 }

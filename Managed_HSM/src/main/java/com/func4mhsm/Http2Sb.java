@@ -1,22 +1,40 @@
 package com.func4mhsm;
 
-import com.azure.core.util.Context;
-import com.azure.identity.DefaultAzureCredentialBuilder;
-import com.azure.security.keyvault.keys.cryptography.CryptographyClient;
-import com.azure.security.keyvault.keys.cryptography.CryptographyClientBuilder;
-import com.azure.security.keyvault.keys.cryptography.models.EncryptParameters;
-import com.azure.security.keyvault.keys.cryptography.models.EncryptResult;
-import com.microsoft.azure.functions.*;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.function.Function;
+
+import com.microsoft.azure.functions.ExecutionContext;
+import com.microsoft.azure.functions.HttpMethod;
+import com.microsoft.azure.functions.HttpRequestMessage;
+import com.microsoft.azure.functions.HttpResponseMessage;
+import com.microsoft.azure.functions.HttpStatus;
+import com.microsoft.azure.functions.OutputBinding;
 import com.microsoft.azure.functions.annotation.AuthorizationLevel;
 import com.microsoft.azure.functions.annotation.FunctionName;
 import com.microsoft.azure.functions.annotation.HttpTrigger;
 import com.microsoft.azure.functions.annotation.ServiceBusTopicOutput;
 
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.util.Optional;
-
 public class Http2Sb {
+
+    private static final String KEY_ID_SETTING = "KEY_ID";
+    private static final String SERVICE_BUS_TOPIC_NAME_EXPRESSION = "%SERVICE_BUS_TOPIC_NAME%";
+    private static final String SERVICE_BUS_TOPIC_SUBSCRIPTION_NAME_EXPRESSION = "%SERVICE_BUS_TOPIC_SUBSCRIPTION_NAME%";
+
+    private final Function<String, String> environment;
+    private final Function<String, ManagedHsmCryptography> cryptographyFactory;
+
+    public Http2Sb() {
+        this(System::getenv, AzureManagedHsmCryptography::new);
+    }
+
+    Http2Sb(
+        Function<String, String> environment,
+        Function<String, ManagedHsmCryptography> cryptographyFactory) {
+        this.environment = Objects.requireNonNull(environment);
+        this.cryptographyFactory = Objects.requireNonNull(cryptographyFactory);
+    }
 
     @FunctionName("http2sb")
     public HttpResponseMessage run(
@@ -27,9 +45,9 @@ public class Http2Sb {
             HttpRequestMessage<Optional<String>> request,
         @ServiceBusTopicOutput(
             name="res",
-            topicName = "mhsmt1",
+            topicName = SERVICE_BUS_TOPIC_NAME_EXPRESSION,
             connection = "sbConnection",
-            subscriptionName = "s1"
+            subscriptionName = SERVICE_BUS_TOPIC_SUBSCRIPTION_NAME_EXPRESSION
         ) OutputBinding<Payload> message,
         final ExecutionContext context) {
 
@@ -39,34 +57,22 @@ public class Http2Sb {
         }
         final String body = request.getBody().get();
 
-        Optional<String> keyId = Optional.ofNullable(System.getenv("KEY_ID"));
+        Optional<String> keyId = Optional.ofNullable(environment.apply(KEY_ID_SETTING));
         if(keyId.isEmpty()) {
             return request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR).body("Key is not found").build();
         }
 
-        CryptographyClient cryptoClient = new CryptographyClientBuilder()
-            .credential(new DefaultAzureCredentialBuilder().build())
-            .keyIdentifier(keyId.get())
-            .buildClient();
-
-        // Generate an initialized vector
-        SecureRandom random = new SecureRandom();
-        byte[] iv = new byte[16];
-        random.nextBytes(iv);
-
-        // Encryption
         byte[] rawBytes = body.getBytes(StandardCharsets.UTF_8);
-        EncryptParameters encryptParameters = EncryptParameters.createA256CbcParameters(rawBytes, iv);
-        EncryptResult encryptResult = cryptoClient.encrypt(encryptParameters, new Context("key1", "value1"));
+        ManagedHsmEncryptionResult encryptionResult = cryptographyFactory.apply(keyId.get()).encrypt(rawBytes);
 
         Payload payload = new Payload();
-        payload.setCipherText(encryptResult.getCipherText());
-        payload.setIv(iv);
+        payload.setCipherText(encryptionResult.cipherText());
+        payload.setIv(encryptionResult.iv());
 
         // Send data to Service Bus
         message.setValue(payload);
         return request.createResponseBuilder(HttpStatus.ACCEPTED)
-            .body("body message is encrypted and published to mhsmt1")
+            .body("body message is encrypted and published to the configured topic")
             .build();
     }
 }
